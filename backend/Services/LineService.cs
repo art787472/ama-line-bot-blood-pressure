@@ -107,6 +107,9 @@ public class LineService
                 return;
             }
 
+            // New photo starts a new round — drop any stale edit state from a previous photo.
+            _pendingEdits.TryRemove(userKey, out _);
+
             var messageId = msg.GetProperty("id").GetString()!;
             var (bytes, mediaType) = await DownloadImageAsync(messageId);
             var reading = await vision.ReadAsync(bytes, mediaType);
@@ -158,13 +161,14 @@ public class LineService
         var p = ParseQueryString(data);
         var action = p.GetValueOrDefault("a");
 
-        // Dedupe: same postback (identified by timestamp) tapped multiple times → only first counts.
+        // One card, one action: any button (confirm/edit/retry) consumes the whole card,
+        // so a saved record can't be re-edited by tapping another button on the same bubble.
         if (p.TryGetValue("t", out var t))
         {
-            var dedupeKey = $"{userKey}:{t}:{action}";
+            var dedupeKey = $"{userKey}:{t}";
             if (!_processedPostbacks.TryAdd(dedupeKey, DateTime.UtcNow))
             {
-                await ReplyTextAsync(replyToken, "已處理過了 ✓");
+                await ReplyTextAsync(replyToken, "這張卡片已經處理過囉,要再操作請重傳照片");
                 return;
             }
         }
@@ -303,6 +307,7 @@ public class LineService
         var pulsePart = r.Pulse.HasValue ? $"&p={r.Pulse}" : "";
         var dataConfirm = $"a=c&s={r.Systolic}&d={r.Diastolic}{pulsePart}&t={timestampMs}";
         var dataEdit = $"a=e&s={r.Systolic}&d={r.Diastolic}{pulsePart}&t={timestampMs}";
+        var dataRetry = $"a=r&t={timestampMs}";
 
         object Row(string label, string value, string? color = null) => new
         {
@@ -379,7 +384,7 @@ public class LineService
                         {
                             type = "button",
                             style = "link",
-                            action = new { type = "postback", label = "📷 重傳", data = "a=r", displayText = "重傳" }
+                            action = new { type = "postback", label = "📷 重傳", data = dataRetry, displayText = "重傳" }
                         }
                     }
                 }
