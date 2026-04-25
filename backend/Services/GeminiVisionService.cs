@@ -12,13 +12,31 @@ public class GeminiVisionService
     private readonly ILogger<GeminiVisionService> _logger;
 
     private const string Prompt = """
-        You read blood pressure monitor displays. Return ONLY a JSON object with this exact shape:
+        You read digits from a home blood pressure monitor's LCD display.
+
+        Return ONLY a JSON object with this exact shape (no markdown, no commentary):
         {"systolic": <int>, "diastolic": <int>, "pulse": <int|null>}
-        - systolic is the larger (upper) number (typically 90-200)
-        - diastolic is the smaller (lower) number (typically 50-120)
-        - pulse is the heart rate if shown, else null
-        If you cannot read the values with confidence, return {"error": "<reason>"}.
-        Do not include markdown fences, commentary, or any other text.
+
+        Reading the display:
+        - The display has three stacked numeric fields. From top to bottom they are usually:
+          1. SYS / 收縮壓 / SYSTOLIC — the largest, topmost number (typically 80-220)
+          2. DIA / 舒張壓 / DIASTOLIC — the middle number (typically 40-130)
+          3. PULSE / 脈搏 / 心跳 / ♥ — the bottom number (typically 40-160)
+        - If labels (SYS/DIA/PULSE, mmHg, bpm, ♥) are visible, trust the labels over position.
+        - Systolic is ALWAYS greater than diastolic. If your reading violates this, re-examine
+          the image — you likely swapped the rows or misread a digit (e.g. 1 vs 7, 0 vs 8, 5 vs 6, 3 vs 8).
+        - Pulse is often shown smaller, near a heart icon, or alternates on the screen. If only
+          two numbers are visible, set pulse to null.
+
+        Handling photo issues:
+        - The photo may be taken from an angle, rotated, tilted, or with glare/reflection on the LCD.
+          Mentally de-skew the display and read the seven-segment digits as if viewed straight-on.
+        - Ignore date/time, memory index (e.g. "M-01"), user icons, battery icons, irregular-heartbeat
+          symbols, and unit labels. Only the three vital-sign numbers matter.
+        - If the screen is blurry, cropped, glared out, or the digits are ambiguous, do NOT guess —
+          return {"error": "<short reason in English>"} instead.
+
+        If the image is not a blood pressure monitor at all, return {"error": "not a BP monitor"}.
         """;
 
     public GeminiVisionService(IHttpClientFactory factory, IConfiguration config, ILogger<GeminiVisionService> logger)
