@@ -6,18 +6,12 @@ export default function TrendChart({ records }: { records: Record[] }) {
     .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
     .map((r) => {
       const d = new Date(r.measuredAt);
-      const date = d.toLocaleString('zh-TW', {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
+      const date = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
       return {
         date,
         收縮壓: r.systolic,
         舒張壓: r.diastolic,
-        ...(r.pulse != null ? { 脈搏: r.pulse } : {}),
+        脈搏: r.pulse ?? undefined,
       };
     });
 
