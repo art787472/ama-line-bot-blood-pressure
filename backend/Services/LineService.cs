@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,11 @@ public class LineService
     private readonly string _channelSecret;
     private readonly string _accessToken;
     private readonly ILogger<LineService> _logger;
+
+    // Group → time when the bot was @mentioned. Image messages from a group are only
+    // processed if there's a recent mention (so we don't OCR every photo in the family chat).
+    private readonly ConcurrentDictionary<string, DateTime> _groupSessions = new();
+    private static readonly TimeSpan SessionTtl = TimeSpan.FromMinutes(10);
 
     public LineService(IHttpClientFactory factory, IConfiguration config, ILogger<LineService> logger)
     {
@@ -58,10 +64,25 @@ public class LineService
         var msg = evt.GetProperty("message");
         var msgType = msg.GetProperty("type").GetString();
         var replyToken = evt.GetProperty("replyToken").GetString()!;
-        var userId = evt.GetProperty("source").GetProperty("userId").GetString() ?? "unknown";
+
+        // Group chats use groupId; 1:1 chats use userId.
+        // All records in a family group belong to the same person (grandma), so key by
+        // groupId so any family member can log a reading.
+        var source = evt.GetProperty("source");
+        var groupId = source.TryGetProperty("groupId", out var gid) ? gid.GetString() : null;
+        var isGroup = groupId is not null;
+        var userId = groupId
+            ?? (source.TryGetProperty("userId", out var uid) ? uid.GetString()! : "unknown");
 
         if (msgType == "image")
         {
+            // In a group, only process if the bot was @mentioned within the last 10 min.
+            if (isGroup && !HasActiveSession(groupId!))
+            {
+                _logger.LogDebug("Image in group {GroupId} ignored (no active session)", groupId);
+                return;
+            }
+
             var messageId = msg.GetProperty("id").GetString()!;
             var (bytes, mediaType) = await DownloadImageAsync(messageId);
             var reading = await vision.ReadAsync(bytes, mediaType);
@@ -83,13 +104,43 @@ public class LineService
         }
         else if (msgType == "text")
         {
-            var text = msg.GetProperty("text").GetString() ?? "";
-            if (text.Trim() is "help" or "說明")
+            // In a group, @mention activates a 10-minute window for image processing.
+            if (isGroup && IsBotMentioned(msg))
             {
-                await ReplyTextAsync(replyToken,
-                    "📸 直接傳血壓計的照片給我,我會自動辨識並記錄數值。");
+                _groupSessions[groupId!] = DateTime.UtcNow;
+                await ReplyTextAsync(replyToken, "📸 請在 10 分鐘內傳血壓計照片");
+                return;
+            }
+
+            // Help command works in 1:1 only — group chats stay quiet unless mentioned.
+            if (!isGroup)
+            {
+                var text = msg.GetProperty("text").GetString() ?? "";
+                if (text.Trim() is "help" or "說明")
+                {
+                    await ReplyTextAsync(replyToken,
+                        "📸 直接傳血壓計的照片給我,我會自動辨識並記錄數值。");
+                }
             }
         }
+    }
+
+    private bool HasActiveSession(string groupId)
+    {
+        return _groupSessions.TryGetValue(groupId, out var ts)
+               && DateTime.UtcNow - ts < SessionTtl;
+    }
+
+    private static bool IsBotMentioned(JsonElement msg)
+    {
+        if (!msg.TryGetProperty("mention", out var mention)) return false;
+        if (!mention.TryGetProperty("mentionees", out var mentionees)) return false;
+        foreach (var m in mentionees.EnumerateArray())
+        {
+            if (m.TryGetProperty("isSelf", out var isSelf) && isSelf.GetBoolean())
+                return true;
+        }
+        return false;
     }
 
     private async Task<(byte[] bytes, string mediaType)> DownloadImageAsync(string messageId)
