@@ -4,15 +4,22 @@ import type { Record } from '../api';
 export default function TrendChart({ records }: { records: Record[] }) {
   const data = [...records]
     .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
-    .map((r) => ({
-      date: new Date(r.measuredAt).toLocaleDateString('zh-TW', {
+    .map((r) => {
+      const d = new Date(r.measuredAt);
+      const date = d.toLocaleString('zh-TW', {
         month: 'numeric',
         day: 'numeric',
-      }),
-      收縮壓: r.systolic,
-      舒張壓: r.diastolic,
-      脈搏: r.pulse ?? 0,
-    }));
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      return {
+        date,
+        收縮壓: r.systolic,
+        舒張壓: r.diastolic,
+        ...(r.pulse != null ? { 脈搏: r.pulse } : {}),
+      };
+    });
 
   return (
     <Card>
