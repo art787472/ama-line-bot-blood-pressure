@@ -49,10 +49,9 @@ public class OpenRouterVisionService
         _http = factory.CreateClient();
         _apiKey = config["OpenRouter:ApiKey"]
             ?? throw new InvalidOperationException("OpenRouter:ApiKey is not configured");
-        // Default to a free vision-language model. OpenRouter's free roster shifts often;
-        // verify availability at https://openrouter.ai/models?max_price=0 and override via
-        // OpenRouter:Model if this one is delisted (a 404 from the API is the usual signal).
-        _model = config["OpenRouter:Model"] ?? "google/gemma-4-26b-a4b-it:free";
+        // Paid Gemini Flash routed through OpenRouter — ~$0.0001/image, no geo-block from TW,
+        // and stable (free OpenRouter models are frequently rate-limited or delisted upstream).
+        _model = config["OpenRouter:Model"] ?? "google/gemini-flash-1.5";
         _logger = logger;
     }
 
