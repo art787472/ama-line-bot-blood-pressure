@@ -49,8 +49,9 @@ public class OpenRouterVisionService
         _http = factory.CreateClient();
         _apiKey = config["OpenRouter:ApiKey"]
             ?? throw new InvalidOperationException("OpenRouter:ApiKey is not configured");
-        // Default to Google's free Gemini 2.0 Flash variant — solid OCR, no cost, accessible from TW via OpenRouter.
-        _model = config["OpenRouter:Model"] ?? "google/gemini-2.0-flash-exp:free";
+        // Free vision model with reasonable OCR quality. OpenRouter's free roster shifts often,
+        // so override via OpenRouter:Model if this one stops being routable.
+        _model = config["OpenRouter:Model"] ?? "meta-llama/llama-3.2-11b-vision-instruct:free";
         _logger = logger;
     }
 
