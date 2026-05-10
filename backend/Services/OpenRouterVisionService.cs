@@ -49,9 +49,10 @@ public class OpenRouterVisionService
         _http = factory.CreateClient();
         _apiKey = config["OpenRouter:ApiKey"]
             ?? throw new InvalidOperationException("OpenRouter:ApiKey is not configured");
-        // Free vision model with reasonable OCR quality. OpenRouter's free roster shifts often,
-        // so override via OpenRouter:Model if this one stops being routable.
-        _model = config["OpenRouter:Model"] ?? "meta-llama/llama-3.2-11b-vision-instruct:free";
+        // Default to a free vision-language model. OpenRouter's free roster shifts often;
+        // verify availability at https://openrouter.ai/models?max_price=0 and override via
+        // OpenRouter:Model if this one is delisted (a 404 from the API is the usual signal).
+        _model = config["OpenRouter:Model"] ?? "google/gemma-4-26b-a4b-it:free";
         _logger = logger;
     }
 
