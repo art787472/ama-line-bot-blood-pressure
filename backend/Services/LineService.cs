@@ -56,7 +56,7 @@ public class LineService
 
     public async Task ProcessEventsAsync(
         string body,
-        GeminiVisionService vision,
+        ClaudeVisionService vision,
         RecordRepository repo)
     {
         using var doc = JsonDocument.Parse(body);
@@ -75,7 +75,7 @@ public class LineService
         }
     }
 
-    private async Task HandleEventAsync(JsonElement evt, GeminiVisionService vision, RecordRepository repo)
+    private async Task HandleEventAsync(JsonElement evt, ClaudeVisionService vision, RecordRepository repo)
     {
         var type = evt.GetProperty("type").GetString();
 

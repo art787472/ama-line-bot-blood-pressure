@@ -15,7 +15,7 @@ builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<LineService>();
-builder.Services.AddSingleton<GeminiVisionService>();
+builder.Services.AddSingleton<ClaudeVisionService>();
 builder.Services.AddSingleton<RecordRepository>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -41,7 +41,7 @@ app.MapGet("/", () => Results.Ok(new { status = "ok", service = "blood-pressure-
 app.MapPost("/webhook", async (
     HttpRequest req,
     LineService line,
-    GeminiVisionService vision,
+    ClaudeVisionService vision,
     RecordRepository repo,
     ILogger<Program> logger) =>
 {
